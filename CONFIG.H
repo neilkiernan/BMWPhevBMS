@@ -48,6 +48,12 @@
 #define BAL_DURING_CHARGE   0       // 1 = also balance in Charge state (cell readings freeze during each bleed phase)
 #define BAL_ONLY_CSC        -1      // bench test: -1 = all CSCs; 0..11 = send the bleed command to that CSC only (0 = module 1)
 
+// CLMod: L322 SimpBMS V2.4 board - J5 pins 6 and 7 (IN3, IN4) do not register 12 V
+// on this board, while pins 1 and 2 (IN1, IN2) do. 1 = read AC present from J5 pin 2
+// (Teensy 16) instead of pin 6 (Teensy 18). Loses the alt charge-current input (IN2),
+// which this build doesn't use. Set 0 for a board with working IN3.
+#define AC_PRESENT_ON_IN2   1
+
 #define EEPROM_VERSION      0x11    //update any time EEPROM struct below is changed.
 #define EEPROM_PAGE         0
 

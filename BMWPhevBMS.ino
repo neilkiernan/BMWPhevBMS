@@ -53,8 +53,13 @@ FilterOnePole lowpassFilter(LOWPASS, filterFrequency);
 const int ACUR2 = A0;  // current 1
 const int ACUR1 = A1;  // current 2
 const int IN1 = 17;    // input 1 - high active
+#if AC_PRESENT_ON_IN2   // CLMod: board-specific, see CONFIG.H
+const int IN2 = 18;    // input 2 - J5 pin 6 (dead on this board) - alt charge current, unused
+const int IN3 = 16;    // input 3 - J5 pin 2 - AC present
+#else
 const int IN2 = 16;    // input 2- high active
 const int IN3 = 18;    // input 1 - high active
+#endif
 const int IN4 = 19;    // input 2- high active
 const int OUT1 = 11;   // output 1 - high active
 const int OUT2 = 12;   // output 2 - high active
