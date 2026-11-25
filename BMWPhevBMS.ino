@@ -190,6 +190,7 @@ int incomingByte = 0;
 int x = 0;
 int storagemode = 0;
 int cellspresent = 0;
+bool seriesFaultShown = false;  // CLMod
 int dashused = 1;
 int Charged = 0;
 bool balancepauze = 0;
@@ -803,18 +804,29 @@ void loop() {
     VEcan();
 
     if (cellspresent == 0 && millis() > 3000) {
-      cellspresent = bms.seriescells();  //set amount of connected cells, might need delay
+      // CLMod: upstream took a snapshot of bms.seriescells() here. If any CSC had not
+      // reported yet at 3 s, the snapshot was short (seen: 16 and 24 of 96) and the BMS
+      // then sat in Error with a healthy pack. Use the configured count instead: a slow CSC
+      // gives a brief Error that clears once it reports; a missing CSC keeps the Error.
+      // Requires Scells and Pstrings set correctly in the battery settings menu.
+      cellspresent = settings.Scells * settings.Pstrings;
       bms.setSensors(settings.IgnoreTemp, settings.IgnoreVolt, settings.TempOff);
     } else {
       if (cellspresent != bms.seriescells())  //detect a fault in cells detected
       {
-        if (debug != 0) {
+        if (debug != 0 && !seriesFaultShown) {  // CLMod: print once per fault, not every 500 ms
           SERIALCONSOLE.println("  ");
-          // SERIALCONSOLE.print("   !!! Series Cells Fault !!!");
+          SERIALCONSOLE.print("   !!! Series Cells Fault !!! expected ");
+          SERIALCONSOLE.print(cellspresent);
+          SERIALCONSOLE.print(" found ");
+          SERIALCONSOLE.print(bms.seriescells());
           SERIALCONSOLE.println("  ");
+          seriesFaultShown = true;
         }
         bmsstatus = Error;
         ErrorReason = 3;
+      } else {
+        seriesFaultShown = false;  // CLMod
       }
     }
 
@@ -1013,6 +1025,9 @@ void printbmsstat() {
     SERIALCONSOLE.print("s|");
   }
   SERIALCONSOLE.print("  ");
+  SERIALCONSOLE.print("Cells ");  // CLMod: found/expected, so a series-cells fault is visible
+  SERIALCONSOLE.print(bms.seriescells());
+  SERIALCONSOLE.print("/");
   SERIALCONSOLE.print(cellspresent);
   SERIALCONSOLE.println();
   SERIALCONSOLE.print("Out:");
