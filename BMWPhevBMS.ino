@@ -43,7 +43,7 @@ SerialConsole console;
 EEPROMSettings settings;
 
 /////Version Identifier/////////
-int firmver = 260424;
+int firmver = 181126;  // CLMod: X5 SP44 review build (was 260424)
 
 //Curent filter//
 float filterFrequency = 5.0;
@@ -193,6 +193,10 @@ int cellspresent = 0;
 int dashused = 1;
 int Charged = 0;
 bool balancepauze = 0;
+// CLMod: balance duty-cycle state (see sendcommand)
+bool balPhaseOn = false;            // true = bleed command being sent to CSCs
+unsigned long balPhaseStart = 0;    // millis() when current bleed/rest phase began
+unsigned long balSettleUntil = 0;   // millis() until which cell readings are still ignored after bleed stops
 
 
 //Debugging modes//////////////////
@@ -641,12 +645,7 @@ void loop() {
           digitalWrite(OUT2, LOW);
           digitalWrite(OUT1, LOW);  //turn off discharge
           contctrl = 0;             //turn off out 5 and 6
-          if (bms.getHighCellVolt() > settings.balanceVoltage && bms.getHighCellVolt() > bms.getLowCellVolt() + settings.balanceHyst) {
-            //bms.balanceCells();
-            balancecells = 1;
-          } else {
-            balancecells = 0;
-          }
+          updateBalanceRequest(true);  // CLMod: balance at rest, with start/stop hysteresis
           if (digitalRead(IN3) == HIGH && (bms.getHighCellVolt() < (settings.ChargeVsetpoint - settings.ChargeHys)))  //detect AC present for charging and check not balancing
           {
             if (settings.ChargerDirect == 1) {
@@ -666,12 +665,14 @@ void loop() {
 
         case (Precharge):
           Discharge = 0;
+          balancecells = 0;  // CLMod
           Prechargecon();
           break;
 
 
         case (Drive):
           Discharge = 1;
+          balancecells = 0;  // CLMod: upstream left this at its last value, so bleed could carry on while driving
           if (digitalRead(IN1) == LOW)  //Key OFF
           {
             bmsstatus = Ready;
@@ -691,12 +692,7 @@ void loop() {
             chargecurrentlimit = false;
           }
           digitalWrite(OUT3, HIGH);  //enable charger
-          if (bms.getHighCellVolt() > settings.balanceVoltage) {
-            //bms.balanceCells();
-            balancecells = 1;
-          } else {
-            balancecells = 0;
-          }
+          updateBalanceRequest(BAL_DURING_CHARGE);  // CLMod: default off - readings freeze during bleed, so OV cut-off would act on stale data
           if (bms.getHighCellVolt() > settings.ChargeVsetpoint) {
             if (bms.getAvgCellVolt() > (settings.ChargeVsetpoint - settings.ChargeHys)) {
               SOCcharged(2);
@@ -714,6 +710,7 @@ void loop() {
 
         case (Error):
           Discharge = 0;
+          balancecells = 0;  // CLMod
           digitalWrite(OUT4, LOW);
           digitalWrite(OUT3, LOW);  //turn off charger
           digitalWrite(OUT2, LOW);
@@ -826,15 +823,9 @@ void loop() {
     }
 
     ///stop reading voltages during balancing//
-    if ((settings.balanceDuty + 5) > ((balancetimer - millis()) * 0.001)) {
-      bms.setBalIgnore(true);
-      /*
-        Serial.println();
-        Serial.println("Ignore Voltages Balancing Active");
-      */
-    } else {
-      bms.setBalIgnore(false);
-    }
+    // CLMod: upstream froze cell readings for ~65 s of every ~2 min even when NOT balancing
+    // (balancetimer re-armed unconditionally). Now: ignore only while bleed is on, plus a settle time.
+    bms.setBalIgnore(balPhaseOn || (long)(balSettleUntil - millis()) > 0);
 
     ///Set Ids to unnasgined//
 
@@ -1016,12 +1007,10 @@ void printbmsstat() {
     SERIALCONSOLE.print("| Key ON |");
   }
   if (balancecells == 1) {
-    SERIALCONSOLE.print("|Balancing Active");
-    SERIALCONSOLE.print("|");
-    //SERIALCONSOLE.print(balancepauze);
-    //SERIALCONSOLE.print("| Counter: ");
-    SERIALCONSOLE.print((balancetimer - millis()) * 0.001, 0);
-    SERIALCONSOLE.print("|");
+    SERIALCONSOLE.print("|Balancing Active ");
+    SERIALCONSOLE.print(balPhaseOn ? "BLEED " : "REST ");   // CLMod
+    SERIALCONSOLE.print((millis() - balPhaseStart) * 0.001, 0);
+    SERIALCONSOLE.print("s|");
   }
   SERIALCONSOLE.print("  ");
   SERIALCONSOLE.print(cellspresent);
@@ -3080,7 +3069,7 @@ void canread() {
   }
   ////
 
-  if (inMsg.id > 0x99 && inMsg.id < 0x180)  //do BMS magic if ids are ones identified to be modules
+  if (inMsg.id >= 0x100 && inMsg.id < 0x180)  // CLMod: was > 0x99, which also fed 0x0A0-0x0FF into the cell decoder. //do BMS magic if ids are ones identified to be modules
   {
     if (candebug == 1 && debug == 1) {
       bms.decodecan(inMsg, 1);  //do  BMS if ids are ones identified to be modules
@@ -3335,8 +3324,23 @@ void outputdebug() {
   }
 }
 
-void balancing() {
-  //Function to control balancing command, to be found
+// CLMod: replaces the empty balancing() stub. The balance command itself has been in
+// sendcommand() since upstream commit 4f63e7c (Jul 2020): target mV in bytes 0-1, enable bit 0x08 in byte 4.
+// This only decides WHETHER to balance, with separate start/stop thresholds.
+void updateBalanceRequest(bool allowed) {
+  if (!allowed) {
+    balancecells = 0;
+    return;
+  }
+  float hi = bms.getHighCellVolt();
+  float lo = bms.getLowCellVolt();
+  if (balancecells == 0) {
+    // start: top cell above balance voltage and spread above hysteresis
+    if (hi > settings.balanceVoltage && (hi - lo) > settings.balanceHyst) balancecells = 1;
+  } else {
+    // stop: spread closed to BAL_STOP_DELTA, or pack has fallen well below balance voltage
+    if ((hi - lo) < BAL_STOP_DELTA || hi < (settings.balanceVoltage - settings.balanceHyst)) balancecells = 0;
+  }
 }
 
 void sendcommand()  //Send Can Command to get data from slaves
@@ -3352,28 +3356,38 @@ void sendcommand()  //Send Can Command to get data from slaves
 
     if (mescycle == 0xF) {
       mescycle = 0;
-
-      if (balancetimer < millis()) {
-        balancepauze = 1;
-        if (debug == 1) {
-          Serial.println();
-          Serial.println("Reset Balance Timer");
-          Serial.println();
-        }
-        balancetimer = millis() + ((settings.balanceDuty + 60) * 1000);
-      } else {
-        balancepauze = 0;
-      }
     }
   }
-  if (balancepauze == 1) {
-    balancecells = 0;
+
+  // CLMod: balance duty cycle. Bleed for settings.balanceDuty seconds, then rest BAL_REST_MS
+  // with bleed off so the CSCs report fresh cell voltages (decodecan ignores cells while
+  // balstat != 0 or BalIgnore is set). Upstream paused for one 16-round counter period,
+  // which doubled (~5 s to ~10 s) when the module count went from 6 to 12.
+  if (balancecells == 1) {
+    unsigned long t = millis() - balPhaseStart;
+    if (balPhaseOn) {
+      if (t > (unsigned long)settings.balanceDuty * 1000UL) {
+        balPhaseOn = false;
+        balPhaseStart = millis();
+        balSettleUntil = millis() + BAL_SETTLE_MS;
+      }
+    } else if (t > BAL_REST_MS) {
+      balPhaseOn = true;
+      balPhaseStart = millis();
+    }
+  } else if (balPhaseOn) {
+    balPhaseOn = false;
+    balPhaseStart = millis();
+    balSettleUntil = millis() + BAL_SETTLE_MS;
   }
 
 
   msg.id = 0x080 | (nextmes);
   msg.len = 8;
-  if (balancecells == 1) {
+  // CLMod: bleed this CSC? BAL_ONLY_CSC limits a bench test to one module.
+  bool bleedThis = balPhaseOn && (BAL_ONLY_CSC < 0 || nextmes == BAL_ONLY_CSC);
+  if (bleedThis) {  // CLMod: was balancecells
+    // Bytes 0-1: bleed target, mV little-endian. CSC bleeds any cell above this.
     msg.buf[0] = lowByte((uint16_t((bms.getLowCellVolt()) * 1000) + 5));
     msg.buf[1] = highByte((uint16_t((bms.getLowCellVolt()) * 1000) + 5));
   } else {
@@ -3388,7 +3402,7 @@ void sendcommand()  //Send Can Command to get data from slaves
     msg.buf[5] = 0x00;
   } else {
 
-    if (balancecells == 1) {
+    if (bleedThis) {  // CLMod: was balancecells. Bit 3 (0x08) = balance enable
       msg.buf[4] = 0x48;
     } else {
       msg.buf[4] = 0x40;

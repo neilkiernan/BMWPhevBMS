@@ -1,5 +1,6 @@
 #pragma once
 #include <FlexCAN.h>
+#include "config.h"   // CLMod: CSC_MAX_CELLS / CELLS_PER_MODULE
 
 class BMSModule
 {
@@ -44,9 +45,11 @@ class BMSModule
 
 
   private:
-    float cellVolt[8];          // calculated as 16 bit value * 6.250 / 16383 = volts          NKMod 16 to 8 220624
-    float lowestCellVolt[8];         // NKMod 16 to 8 220624
-    float highestCellVolt[8];         // NKMod 16 to 8 220624
+    // CLMod: storage stays 16 because decodecan() writes up to index 15 (CSC frames 0x14x-0x17x).
+    // Only the first CELLS_PER_MODULE entries are used for limits, sums and printing.
+    float cellVolt[CSC_MAX_CELLS];          // calculated as 16 bit value * 6.250 / 16383 = volts
+    float lowestCellVolt[CSC_MAX_CELLS];
+    float highestCellVolt[CSC_MAX_CELLS];
     float moduleVolt;          // calculated as 16 bit value * 33.333 / 16383 = volts
     float temperatures[4];     // Don't know the proper scaling at this point
     float lowestTemperature;

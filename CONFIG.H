@@ -36,6 +36,18 @@
 
 #define MAX_MODULE_ADDR     0x3E
 
+// CLMod: BMW X5 45e SP44 pack - 12 CSCs x 8 cells = 96s
+#define CSC_MAX_CELLS       16      // cells the CSC CAN frames can carry (array storage size)
+#define CELLS_PER_MODULE    8       // cells actually fitted per SP44 module
+#define NUM_CSC             12      // CSCs in the pack (CAN IDs 0x10x-0x17x, x = 0..NUM_CSC-1)
+
+// CLMod: balancing duty cycle (rest phase lets cell readings update between bleed phases)
+#define BAL_REST_MS         10000   // ms with bleed off between balance phases
+#define BAL_SETTLE_MS       3000    // ms after bleed stops before cell readings are trusted again
+#define BAL_STOP_DELTA      0.010f  // V: stop balancing once high-low spread is below this
+#define BAL_DURING_CHARGE   0       // 1 = also balance in Charge state (cell readings freeze during each bleed phase)
+#define BAL_ONLY_CSC        -1      // bench test: -1 = all CSCs; 0..11 = send the bleed command to that CSC only (0 = module 1)
+
 #define EEPROM_VERSION      0x11    //update any time EEPROM struct below is changed.
 #define EEPROM_PAGE         0
 

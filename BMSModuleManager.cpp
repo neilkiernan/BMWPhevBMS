@@ -94,6 +94,7 @@ int BMSModuleManager::getNumModules()
 void BMSModuleManager::decodetemp(CAN_message_t &msg, int debug, int CSC)
 {
   int CMU = (msg.id & 0x00F) + 1;
+  if (CMU < 1 || CMU > NUM_CSC) return;   // CLMod: ignore temps from non-fitted CSC IDs
   modules[CMU].decodetemp(msg, CSC);
   if (debug == 1 && CMU > 0)
   {
@@ -151,6 +152,10 @@ void BMSModuleManager::decodecan(CAN_message_t &msg, int debug)
       Serial.println();
     }
   }
+  // CLMod: only accept frames from the fitted CSCs. Anything else on 0x100-0x17F
+  // (another node, or a stray ID) used to create a phantom module and trip the
+  // series-cell count check.
+  if (CMU < 1 || CMU > NUM_CSC || Id > 6) return;
   modules[CMU].setExists(true);
   modules[CMU].setReset(true);
   modules[CMU].decodecan(Id, msg, BalIgnore);
@@ -458,7 +463,7 @@ void BMSModuleManager::printPackDetails(int digits, int CSCvariant)
       SERIALCONSOLE.print("  ");
       SERIALCONSOLE.print(modules[y].getModuleVoltage(), digits);
       SERIALCONSOLE.print("V");
-      for (int i = 0; i < 8; i++)         // NKMod 16 to 8 220624
+      for (int i = 0; i < CELLS_PER_MODULE; i++)         // NKMod 16 to 8 220624
       {
         if (cellNum < 10) SERIALCONSOLE.print(" ");
         SERIALCONSOLE.print("  Cell");
@@ -523,7 +528,7 @@ void BMSModuleManager::printAllCSV(unsigned long timestamp, float current, int S
       SERIALCONSOLE.print(",");
       SERIALCONSOLE.print(y);
       SERIALCONSOLE.print(",");
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < CELLS_PER_MODULE; i++)
       {
         SERIALCONSOLE.print(modules[y].getCellVoltage(i));
         SERIALCONSOLE.print(",");
@@ -548,7 +553,7 @@ void BMSModuleManager::printAllCSV(unsigned long timestamp, float current, int S
       Serial2.print(",");
       Serial2.print(y);
       Serial2.print(",");
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < CELLS_PER_MODULE; i++)
       {
         Serial2.print(modules[y].getCellVoltage(i));
         Serial2.print(",");
