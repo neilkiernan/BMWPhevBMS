@@ -6,7 +6,7 @@
 
 BMSModule::BMSModule()
 {
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < 8; i++)         // NKMod 16 to 8 220624
   {
     cellVolt[i] = 0.0f;
     lowestCellVolt[i] = 5.0f;
@@ -29,7 +29,7 @@ BMSModule::BMSModule()
 
 void BMSModule::clearmodule()
 {
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < 8; i++)          // NKMod 16 to 8 220624
   {
     cellVolt[i] = 0.0f;
   }
@@ -122,7 +122,7 @@ void BMSModule::decodecan(int Id, CAN_message_t &msg, bool Ign)
 
       break;
   }
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < 8; i++)         // NKMod 16 to 8 220624
   {
     if (lowestCellVolt[i] > cellVolt[i] && cellVolt[i] >= IgnoreCell) lowestCellVolt[i] = cellVolt[i];
     if (highestCellVolt[i] < cellVolt[i] && cellVolt[i] > 5.0) highestCellVolt[i] = cellVolt[i];
@@ -177,21 +177,21 @@ uint8_t BMSModule::getCUVCells()
 
 float BMSModule::getCellVoltage(int cell)
 {
-  if (cell < 0 || cell > 16) return 0.0f;
+  if (cell < 0 || cell > 8) return 0.0f;          // NKMod 16 to 8 220624
   return cellVolt[cell];
 }
 
 float BMSModule::getLowCellV()
 {
   float lowVal = 10.0f;
-  for (int i = 0; i < 16; i++) if (cellVolt[i] < lowVal && cellVolt[i] > IgnoreCell) lowVal = cellVolt[i];
+  for (int i = 0; i < 8; i++) if (cellVolt[i] < lowVal && cellVolt[i] > IgnoreCell) lowVal = cellVolt[i];         // NKMod 16 to 8 220624
   return lowVal;
 }
 
 float BMSModule::getHighCellV()
 {
   float hiVal = 0.0f;
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < 8; i++)         // NKMod 16 to 8 220624
     if (cellVolt[i] > IgnoreCell && cellVolt[i] < 5.0)
     {
       if (cellVolt[i] > hiVal) hiVal = cellVolt[i];
@@ -203,7 +203,7 @@ float BMSModule::getAverageV()
 {
   int x = 0;
   float avgVal = 0.0f;
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < 8; i++)         // NKMod 16 to 8 220624
   {
     if (cellVolt[i] > IgnoreCell && cellVolt[i] < 5.0)
     {
@@ -239,13 +239,13 @@ float BMSModule::getLowestModuleVolt()
 
 float BMSModule::getHighestCellVolt(int cell)
 {
-  if (cell < 0 || cell > 16) return 0.0f;
+  if (cell < 0 || cell > 8) return 0.0f;          // NKMod 16 to 8 220624
   return highestCellVolt[cell];
 }
 
 float BMSModule::getLowestCellVolt(int cell)
 {
-  if (cell < 0 || cell > 16) return 0.0f;
+  if (cell < 0 || cell > 8) return 0.0f;          // NKMod 16 to 8 220624
   return lowestCellVolt[cell];
 }
 
@@ -325,7 +325,7 @@ float BMSModule::getAvgTemp()
 float BMSModule::getModuleVoltage()
 {
   moduleVolt = 0;
-  for (int I; I < 16; I++)
+  for (int I; I < 8; I++)         // NKMod 16 to 8 220624
   {
     if (cellVolt[I] > IgnoreCell && cellVolt[I] < 5.0)
     {

@@ -458,7 +458,7 @@ void BMSModuleManager::printPackDetails(int digits, int CSCvariant)
       SERIALCONSOLE.print("  ");
       SERIALCONSOLE.print(modules[y].getModuleVoltage(), digits);
       SERIALCONSOLE.print("V");
-      for (int i = 0; i < 16; i++)
+      for (int i = 0; i < 8; i++)         // NKMod 16 to 8 220624
       {
         if (cellNum < 10) SERIALCONSOLE.print(" ");
         SERIALCONSOLE.print("  Cell");

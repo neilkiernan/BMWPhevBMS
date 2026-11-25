@@ -813,7 +813,7 @@ void loop() {
       {
         if (debug != 0) {
           SERIALCONSOLE.println("  ");
-          SERIALCONSOLE.print("   !!! Series Cells Fault !!!");
+          // SERIALCONSOLE.print("   !!! Series Cells Fault !!!");
           SERIALCONSOLE.println("  ");
         }
         bmsstatus = Error;
@@ -3006,19 +3006,41 @@ void canread() {
     }
     if (settings.curcan == 3) {
       switch (inMsg.id) {
-        case 0x521:  //
-          CANmilliamps = (long)((inMsg.buf[2] << 24) | (inMsg.buf[3] << 16) | (inMsg.buf[4] << 8) | (inMsg.buf[5]));
+
+        case 0x521: {  // ISA shunt current
+          uint32_t raw =
+            ((uint32_t)inMsg.buf[5] << 24) |
+            ((uint32_t)inMsg.buf[4] << 16) |
+            ((uint32_t)inMsg.buf[3] << 8)  |
+            ((uint32_t)inMsg.buf[2]);
+
+          CANmilliamps = (int32_t)raw;
           RawCur = CANmilliamps;
           getcurrent();
           break;
+        }
 
-        case 0x522:  //
-          voltage1 = (long)((inMsg.buf[2] << 24) | (inMsg.buf[3] << 16) | (inMsg.buf[4] << 8) | (inMsg.buf[5]));
-          break;
+        case 0x522: {  // ISA shunt voltage 1
+          uint32_t raw =
+              ((uint32_t)inMsg.buf[5] << 24) |
+              ((uint32_t)inMsg.buf[4] << 16) |
+              ((uint32_t)inMsg.buf[3] << 8)  |
+              ((uint32_t)inMsg.buf[2]);
 
-        case 0x523:  //
-          voltage2 = (long)((inMsg.buf[2] << 24) | (inMsg.buf[3] << 16) | (inMsg.buf[4] << 8) | (inMsg.buf[5]));
+          voltage1 = (int32_t)raw;
           break;
+        }
+
+        case 0x523: {  // ISA shunt voltage 2
+          uint32_t raw =
+              ((uint32_t)inMsg.buf[5] << 24) |
+              ((uint32_t)inMsg.buf[4] << 16) |
+              ((uint32_t)inMsg.buf[3] << 8)  |
+              ((uint32_t)inMsg.buf[2]);
+
+          voltage2 = (int32_t)raw;
+          break;
+        }
 
         default:
           break;
@@ -3321,7 +3343,7 @@ void sendcommand()  //Send Can Command to get data from slaves
 {
   ///////module id cycling/////////
 
-  if (nextmes == 6) {
+  if (nextmes == 12) {
     mescycle++;
     nextmes = 0;
     if (testcycle < 4) {
@@ -3407,7 +3429,7 @@ void pwmcomms() {
       Serial.print(" OUT8 ");
   */
   if (bms.getLowCellVolt() < settings.UnderVSetpoint) {
-    analogWrite(OUT8, 224);  //12V to 10V converter 1.5V
+    analogWrite(OUT8, 224);  //V to 10V converter 1.5V
   } else {
     p = map(SOC, 0, 100, 220, 50);
     analogWrite(OUT8, p);  //2V to 10V converter 1.5-10V
